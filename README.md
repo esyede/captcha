@@ -65,6 +65,21 @@ if ($validation->fails()) {
 ```
 
 
+## Captcha yang membedakan huruf besar-kecil
+
+Secara bawaan captcha tidak membedakan huruf besar dan kecil. Untuk mengaktifkannya,
+ubah route captcha di `packages/captcha/routes.php` menjadi:
+
+```php
+Route::get('captcha', function () {
+    return Esyede\Captcha::make(true);
+});
+```
+
+Pilihan ini ikut disimpan di session bersama captcha-nya, jadi `check()` otomatis
+mengikuti mode yang dipakai saat gambar dibuat.
+
+
 ## Lisensi
 
 Paket ini dirilis dibawah [Lisensi MIT](https://github.com/esyede/captcha/blob/master/LICENSE)

@@ -8,6 +8,7 @@ use System\URL;
 use System\Str;
 use System\Hash;
 use System\Session;
+use System\Response;
 
 class Captcha
 {
@@ -34,7 +35,9 @@ class Captcha
         );
 
         $characters = static::$case_sensitive ? static::$characters : strtolower(static::$characters);
+
         Session::put('captcha.hash', Hash::make($characters));
+        Session::put('captcha.case_sensitive', static::$case_sensitive);
 
         $bg = static::background();
         $font = static::font();
@@ -43,13 +46,19 @@ class Captcha
 
         switch ($info['mime']) {
             case 'image/jpg':
-            case 'image/jpeg': $old = imagecreatefromjpeg($bg); break;
-            case 'image/gif':  $old = imagecreatefromgif($bg);  break;
-            case 'image/png':  $old = imagecreatefrompng($bg);  break;
-            default:           throw new \Exception('Only JPG, PNG and GIF are supported for backgrounds.');
+            case 'image/jpeg':
+                $old = imagecreatefromjpeg($bg);
+                break;
+            case 'image/gif':
+                $old = imagecreatefromgif($bg);
+                break;
+            case 'image/png':
+                $old = imagecreatefrompng($bg);
+                break;
+            default:
+                throw new \Exception('Only JPG, PNG and GIF are supported for backgrounds.');
         }
 
-        // default settings
         $width = 120;
         $height = 30;
         $space = 20;
@@ -80,35 +89,43 @@ class Captcha
             imagettftext($new, rand(18, 20), $w, $gap, $h, $fg, $font, static::$characters[$i]);
         }
 
-        header('Cache-Control: no-cache, no-store, max-age=0, must-revalidate');
-        header('Pragma: no-cache');
-        header('Content-type: image/png');
-        header('Content-Disposition: inline; filename=captcha.png');
+        ob_start();
+        imagepng($new);
+        $image = ob_get_clean();
+        imagedestroy($new);
 
-        return imagepng($new);
+        return Response::make($image, 200, [
+            'Cache-Control' => 'no-cache, no-store, max-age=0, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'inline; filename=captcha.png',
+        ]);
     }
 
     public static function check($value)
     {
-        $value = trim((string) (static::$case_sensitive ? $value : strtolower($value)));
         $hash = Session::get('captcha.hash', '');
-        return $value && $hash && Hash::check($value, $hash);
+        $sensitive = (bool) Session::get('captcha.case_sensitive', false);
+        $value = trim((string) $value);
+        $value = $sensitive ? $value : strtolower($value);
+
+        return ($value !== '') && $hash && Hash::check($value, $hash);
     }
 
     public static function url()
     {
-        return URL::to('captcha?'.mt_rand(1, 100000));
+        return URL::to('captcha?' . mt_rand(1, 100000));
     }
 
     protected static function fonts()
     {
-        $fonts = glob(path('assets').'packages'.DS.'captcha'.DS.'fonts'.DS.'*.ttf');
+        $fonts = glob(path('assets') . 'packages' . DS . 'captcha' . DS . 'fonts' . DS . '*.ttf');
         static::$fonts = (is_array($fonts) && ! empty($fonts)) ? $fonts : [];
     }
 
     protected static function backgrounds()
     {
-        $backgrounds = glob(path('assets').'packages'.DS.'captcha'.DS.'backgrounds'.DS.'*.png');
+        $backgrounds = glob(path('assets') . 'packages' . DS . 'captcha' . DS . 'backgrounds' . DS . '*.png');
         static::$backgrounds = (is_array($backgrounds) && ! empty($backgrounds)) ? $backgrounds : [];
     }
 
